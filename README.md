@@ -1,1 +1,1 @@
-### The code will be updated this month
+An implementation of "Community preserving adaptive graph convolutional networks for link prediction in attributed networks" (IEEE Transactions on Neural Networks and Learning Systems)
