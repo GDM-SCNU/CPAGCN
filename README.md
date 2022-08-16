@@ -2,4 +2,4 @@ The source code of paper titled "Community preserving adaptive graph convolution
 
 Note that it should install Deep Graph Library (DGL) https://www.dgl.ai/ before running. To test it quickly, you can directly use network datasets of DGL like this:
 
-![](C:\Users\cheng\Desktop\CPAGCN\Fig.png)
+![](Fig.png)
