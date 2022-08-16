@@ -9,13 +9,14 @@ import networkx as nx
 from sklearn.metrics import roc_auc_score, average_precision_score
 from BigCLAM import  BerpoDecoder
 from scipy import sparse
+from KnnDGL import *
 import dgl.data
 
-Embedding_dims=37
-#dataset = dgl.data.CoraGraphDataset()
-dataset = dgl.data.PubmedGraphDataset()
+Embedding_dims=105
+dataset = dgl.data.CoraGraphDataset()
+#dataset = dgl.data.PubmedGraphDataset()
 g = dataset[0]
-
+dataset_knn = KnnDGLFromDGL("cora", g.ndata['feat'], topK= 20, num_classes= 7, num_nodes = g.num_nodes())
 ######################################################################
 # Prepare training and testing sets
 # Split edge set for training and testing
@@ -98,9 +99,28 @@ class MLPPredictor(nn.Module):
             g.apply_edges(self.apply_edges)
             return g.edata['score']
 
+class Attention(nn.Module):
+    def __init__(self, emb_dim, hidden_size=64):
+        super(Attention, self).__init__()
 
+        self.project = nn.Sequential(
+            nn.Linear(emb_dim, hidden_size),
+            #nn.Tanh(), # 激活
+            nn.ReLU(),
+            nn.Linear(hidden_size, 1, bias=False)
+        )
+
+    def forward(self, z):
+        w = self.project(z) # n * 1 # [265 2 32]
+        #print ('w')
+        #print (w.shape)
+        beta = torch.softmax(w, dim=1) # eq. 9
+        return (beta * z).sum(1), beta
+
+attention = Attention(Embedding_dims)
 
 model = GraphSAGE(train_g.ndata['feat'].shape[1],Embedding_dims)
+model_knn = GraphSAGE(train_g.ndata['feat'].shape[1],Embedding_dims)
 pred = MLPPredictor(Embedding_dims)
 
 
@@ -135,9 +155,13 @@ all_logits = []
 sp_adj = sparse.csr_matrix(train_g.adjacency_matrix().to_dense().numpy())  # 稀疏矩阵
 auc_list=[]
 ap_list=[]
-for e in range(1000):
+for e in range(300):
     # forward
-    h = model(train_g, train_g.ndata['feat'])
+    h = model(train_g, train_g.ndata['feat']) #调用模型的Forward函数
+    h_knn = model(dataset_knn.graph, train_g.ndata['feat'])
+    h = torch.stack([h, h_knn], dim=1)  # [265,2,32]
+    h, att = attention(h)
+
     pos_score = pred(train_pos_g, h)
     neg_score = pred(train_neg_g, h)
     loss = compute_loss(pos_score, neg_score)
